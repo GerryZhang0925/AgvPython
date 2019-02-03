@@ -5,6 +5,6 @@
 
 # Usage:
 ```
-   chmod +x trafficsign_lenet.py<br>
-   ./trafficsign_lenet.py<br>
+   chmod +x trafficsign_lenet.py
+   ./trafficsign_lenet.py
 ```
