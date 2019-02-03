@@ -1,7 +1,7 @@
-Requirements:
+Requirements:<br>
    Anaconda 3.6 with numpy, matplotlib, tensorflow
 
-Usage:
+Usage:<br>
    chmod +x *.py
    ./mnist_lenet.py       # solve MNIST with LeNet
    ./mnist_perceptron.py  # solve MNIST with Perceptron
