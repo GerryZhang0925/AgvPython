@@ -1,6 +1,10 @@
-<b>Requirements:</b><br>
-   Anaconda 3.6 with sklearn, cv2, zipfile, numpy, tensorflow<br>
+# Requirements:
+```
+   Anaconda 3.6 with sklearn, cv2, zipfile, numpy, tensorflow
+```
 
-<b>Usage:</b><br>
+# Usage:
+```
    chmod +x trafficsign_lenet.py<br>
    ./trafficsign_lenet.py<br>
+```
