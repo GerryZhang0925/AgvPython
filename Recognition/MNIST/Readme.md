@@ -1,9 +1,12 @@
-<b>Requirements:</b><br>
-   Anaconda 3.6 with numpy, matplotlib, tensorflow<br>
-<br>
+# Requirements:
+```
+   Anaconda 3.6 with numpy, matplotlib, tensorflow
+```
 
-<b>Usage:</b><br>
-   chmod +x *.py<br>
-   ./mnist_lenet.py       # solve MNIST with LeNet<br>
-   ./mnist_perceptron.py  # solve MNIST with Perceptron<br>
-   ./compare.py           # compare results of LeNet and Perceptron<br>
+# Usage:
+```
+   chmod +x *.py
+   ./mnist_lenet.py       # solve MNIST with LeNet
+   ./mnist_perceptron.py  # solve MNIST with Perceptron
+   ./compare.py           # compare results of LeNet and Perceptron
+ ```
