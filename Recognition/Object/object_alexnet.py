@@ -21,10 +21,10 @@ sess  = tf.Session()
 sess.run(init)
 
 # Read Images
-im1 = (imread("poodle.png")[:, :, :3] * 255).astype(np.float32)
+im1 = (imread("../data/poodle.png")[:, :, :3] * 255).astype(np.float32)
 im1 = im1 - np.mean(im1)
 
-im2 = (imread("weasel.png")[:, :, :3] * 255).astype(np.float32)
+im2 = (imread("../data/weasel.png")[:, :, :3] * 255).astype(np.float32)
 im2 = im2 - np.mean(im2)
 
 # Run Inference
