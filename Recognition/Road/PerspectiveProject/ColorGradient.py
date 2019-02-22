@@ -51,7 +51,7 @@ def applyPipeline(fname):
     ax1.imshow(image)
     ax1.set_title('Original Image', fontsize=40)
 
-    ax2.imshow(result)
+    ax2.imshow(result, cmap='gray')
     ax2.set_title('Pipeline Result', fontsize=40)
     plt.subplots_adjust(left=0., right=1, top=0.9, bottom=0.)
     plt.show()
@@ -64,14 +64,16 @@ def applyPipeline(fname):
 def abs_sobel_thresh(img, orient='x', thresh_min=0, thresh_max=255):
     '''
     Apply the following steps to img
-    1) Convert to grayscale
-    2) Take the derivative in x or y given orient = 'x' or 'y'
+   
+    
     3) Take the absolute value of the derivative or gradient
     4) Scale to 8-bit (0-255) then convert to type = np.uint8
     5) Create a mask of 1's where the scaled gradient magnitude is > thresh_min and < thresh_max
     6) Return this mask as your binary_output image
     '''
+    # 1) Convert to grayscale
     gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+    # 2) Take the derivative in x or y given orient = 'x' or 'y'
     if orient == 'x':
         sobel = np.absolute(cv2.Sobel(gray, cv2.CV_64F, 1, 0))
     elif orient == 'y':
@@ -168,8 +170,193 @@ def applyWindowCentroids(fname):
     plt.imshow(output)
     plt.title('window fitting results')
     plt.show()
+
+def mag_thresh(img, sobel_kernel=3, mag_thresh=(0, 255)):
+    # 1) Convert to grayscale
+    gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+    # 2) Take both Sobel x and y gradients
+    sobelx = cv2.Sobel(gray, cv2.CV_64F, 1, 0, ksize=sobel_kernel)
+    sobely = cv2.Sobel(gray, cv2.CV_64F, 0, 1, ksize=sobel_kernel)
+    # Calculate the gradient magnitude
+    gradmag = np.sqrt(sobelx**2 + sobely**2)
+    # Rescale to 8 bit
+    scale_factor = np.max(gradmag)/255
+    gradmag = (gradmag/scale_factor).astype(np.uint8)
+    # Create a binary image of ones where threshold is met, zeros otherwise
+    binary_output = np.zeros_like(gradmag)
+    binary_output[(gradmag >= mag_thresh[0]) & (gradmag <= mag_thresh[1])] = 1
+
+    return binary_output
+
+def applyMagThresh(fname):
+    image = mpimg.imread(fname)
+    mag_binary = mag_thresh(image, sobel_kernel=3, mag_thresh=(30, 100))
+    # Plot the result
+    f, (ax1, ax2) = plt.subplots(1, 2, figsize=(24, 9))
+    f.tight_layout()
+    ax1.imshow(image)
+    ax1.set_title('Original Image', fontsize=50)
+    ax2.imshow(mag_binary, cmap='gray')
+    ax2.set_title('Thresholded Magnitude', fontsize=50)
+    plt.subplots_adjust(left=0., right=1, top=0.9, bottom=0.)
+    plt.show()
+
+def hls_select(img, thresh=(0, 255)):
+    hls = cv2.cvtColor(img, cv2.COLOR_RGB2HLS)
+    s_channel = hls[:,:,2]
+    binary_output = np.zeros_like(s_channel)
+    binary_output[(s_channel > thresh[0]) & (s_channel <= thresh[1])] = 1
+    return binary_output
+
+def applyHlsSelect(fname):
+    image = mpimg.imread(fname)
+    hls_binary = hls_select(image, thresh=(90, 255))
     
+    f, (ax1, ax2) = plt.subplots(1, 2, figsize=(24, 9))
+    f.tight_layout()
+    ax1.imshow(image)
+    ax1.set_title('Original Image', fontsize=50)
+    ax2.imshow(hls_binary, cmap='gray')
+    ax2.set_title('Thresholded S', fontsize=50)
+    plt.subplots_adjust(left=0., right=1, top=0.9, bottom=0.)
+    plt.show()
+
+
+# Apply Threshold to each channel
+def applyThreshold(image, ch0th, ch1th, ch2th):
+    bin = np.zeros_like(image[:,:,0])
+    bin[((image[:,:,0] > ch0th[0]) & (image[:,:,0] <= ch0th[1]) & \
+         (image[:,:,1] > ch1th[0]) & (image[:,:,1] <= ch1th[1]) & \
+         (image[:,:,2] > ch2th[0]) & (image[:,:,2] <= ch2th[1]))] = 1
+    return bin
+    
+def tryThreshold(fname, colorspace, ch0th, ch1th, ch2th):
+    image = mpimg.imread(fname)
+
+    if (colorspace == 'HLS'):
+        image = cv2.cvtColor(image, cv2.COLOR_RGB2HLS)
+    elif (colorspace == 'HSV'):
+        image = cv2.cvtColor(image, cv2.COLOR_RGB2HSV)
+    elif (colorspace == 'LAB'):
+        image = cv2.cvtColor(image, cv2.COLOR_RGB2LAB)
+    else:
+        pass
+
+    # for channel 0
+    target_channel = image[:,:,0]
+    start0 = ch0th[0]
+    step0 = (ch0th[1]-ch0th[0])/3.0
+    img0_0 = np.zeros_like(target_channel)
+    img0_0[(target_channel > start0) & (target_channel <= start0 + step0)] = 1
+    img0_1 = np.zeros_like(target_channel)
+    img0_1[(target_channel > start0 + step0) & (target_channel <= start0 + 2*step0)] = 1
+    img0_2 = np.zeros_like(target_channel)
+    img0_2[(target_channel > start0 + 2*step0) & (target_channel <= start0 + 3*step0)] = 1
+
+    # for channel 1
+    target_channel = image[:,:,1]
+    start1 = ch1th[0]
+    step1 = (ch1th[1]-ch1th[0])/3
+    img1_0 = np.zeros_like(target_channel)
+    img1_0[(target_channel > start1) & (target_channel <= start1 + step1)] = 1
+    img1_1 = np.zeros_like(target_channel)
+    img1_1[(target_channel > start1 + step1) & (target_channel <= start1 + 2*step1)] = 1
+    img1_2 = np.zeros_like(target_channel)
+    img1_2[(target_channel > start1 + 2*step1) & (target_channel <= start1 + 3*step1)] = 1
+
+    # for channel 2
+    target_channel = image[:,:,2]
+    start2 = ch2th[0]
+    step2 = (ch2th[1]-ch2th[0])/3
+    img2_0 = np.zeros_like(target_channel)
+    img2_0[(target_channel > start2) & (target_channel <= start2 + step2)] = 1
+    img2_1 = np.zeros_like(target_channel)
+    img2_1[(target_channel > start2 + step2) & (target_channel <= start2 + 2*step2)] = 1
+    img2_2 = np.zeros_like(target_channel)
+    img2_2[(target_channel > start2 + 2*step2) & (target_channel <= start2 + 3*step2)] = 1
+    
+
+    # Plot Every Space
+    f, ax = plt.subplots(3, 3, figsize=(24,9))
+    f.tight_layout()
+
+    ax[0, 0].imshow(img0_0, cmap='gray')
+    ax[0, 0].set_title('({}-{})'.format(start0,start0+step0), fontsize=10)
+    ax[0, 1].imshow(img0_1, cmap='gray')
+    ax[0, 1].set_title('({}-{})'.format(start0+step0,start0+2*step0), fontsize=10)
+    ax[0, 2].imshow(img0_2, cmap='gray')
+    ax[0, 2].set_title('({}-{})'.format(start0+2*step0,start0+3*step0), fontsize=10)
+    ax[1, 0].imshow(img1_0, cmap='gray')
+    ax[1, 0].set_title('({}-{})'.format(start1,start1+step1), fontsize=10)
+    ax[1, 1].imshow(img1_1, cmap='gray')
+    ax[1, 1].set_title('({}-{})'.format(start1+step1,start1+2*step1), fontsize=10)
+    ax[1, 2].imshow(img1_2, cmap='gray')
+    ax[1, 2].set_title('({}-{})'.format(start1+2*step1,start1+3*step1), fontsize=10)
+    ax[2, 0].imshow(img2_0, cmap='gray')
+    ax[2, 0].set_title('({}-{})'.format(start2,start2+step2), fontsize=10)
+    ax[2, 1].imshow(img2_1, cmap='gray')
+    ax[2, 1].set_title('({}-{})'.format(start2+step2,start2+2*step2), fontsize=10)
+    ax[2, 2].imshow(img2_2, cmap='gray')
+    ax[2, 2].set_title('({}-{})'.format(start2+2*step2,start2+3*step2), fontsize=10)
+    plt.show()
+    
+
+# Split Images into different channel
+def tryColorSpaceSplit(fname):
+    # Split at RGB Space
+    image = mpimg.imread(fname)
+
+    # Split at HLS Space
+    hls = cv2.cvtColor(image, cv2.COLOR_RGB2HLS)
+
+    # Split at HSV Space
+    hsv = cv2.cvtColor(image, cv2.COLOR_RGB2HSV)
+
+    # Split at LAB Space
+    lab = cv2.cvtColor(image, cv2.COLOR_RGB2LAB)
+
+    # Plot Every Space
+    f, ax = plt.subplots(4, 3, figsize=(24, 9))
+    f.tight_layout()
+
+    ax[0, 0].imshow(image[:,:,0], cmap='gray')
+    ax[0, 0].set_title('Red Channel', fontsize=10)
+    ax[0, 1].imshow(image[:,:,1], cmap='gray')
+    ax[0, 1].set_title('Green Channel', fontsize=10)
+    ax[0, 2].imshow(image[:,:,2], cmap='gray')
+    ax[0, 2].set_title('Blue Channel', fontsize=10)
+    ax[1, 0].imshow(hls[:,:,0], cmap='gray')
+    ax[1, 0].set_title('Hue Channel', fontsize=10)
+    ax[1, 1].imshow(hls[:,:,1], cmap='gray')
+    ax[1, 1].set_title('Lightless Channel', fontsize=10)
+    ax[1, 2].imshow(hls[:,:,2], cmap='gray')
+    ax[1, 2].set_title('Saturation Channel', fontsize=10)
+    ax[2, 0].imshow(hsv[:,:,0], cmap='gray')
+    ax[2, 0].set_title('Hue Channel', fontsize=10)
+    ax[2, 1].imshow(hsv[:,:,1], cmap='gray')
+    ax[2, 1].set_title('Saturation Channel', fontsize=10)
+    ax[2, 2].imshow(hsv[:,:,2], cmap='gray')
+    ax[2, 2].set_title('Value Channel', fontsize=10)
+    ax[3, 0].imshow(lab[:,:,0], cmap='gray')
+    ax[3, 0].set_title('Lightness', fontsize=10)
+    ax[3, 1].imshow(lab[:,:,1], cmap='gray')
+    ax[3, 1].set_title('Green-Red (A) Channel', fontsize=10)
+    ax[3, 2].imshow(lab[:,:,2], cmap='gray')
+    ax[3, 2].set_title('Blue-Yellow (B) Channel', fontsize=10)
+    plt.show()
+    
+
 if __name__ == "__main__":
     #applyPipeline('bridge_shadow.jpg')
     #applySobel('signs_vehicles_xygrad.png')
-    applyWindowCentroids('warped-example.jpg')
+    #applyWindowCentroids('warped-example.jpg')
+    #applyMagThresh('signs_vehicles_xygrad.png')
+    #applyHlsSelect('bridge_shadow.jpg')
+    #tryColorSpaceSplit('bridge_shadow.jpg')
+    #tryThreshold('bridge_shadow.jpg', 'HLS', (0, 255), (0, 255), (0, 255))
+
+    image = mpimg.imread('bridge_shadow.jpg')
+    image = cv2.cvtColor(image, cv2.COLOR_RGB2HLS)
+    image = applyThreshold(image, (0, 30), (105, 255), (170, 255))
+    plt.imshow(image, cmap='gray')
+    plt.show()
