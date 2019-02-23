@@ -12,89 +12,26 @@ window_width = 50
 window_height = 80 # Break image into 9 vertical layers since image height is 720
 margin = 100 # How much to slide left and right for searching
 
+# Selection
+color_type = {
+    'HLS0': (cv2.COLOR_RGB2HLS, 0),
+    'HLS1': (cv2.COLOR_RGB2HLS, 1),
+    'HLS2': (cv2.COLOR_RGB2HLS, 2),
+    'HSV0': (cv2.COLOR_RGB2HSV, 0),
+    'HSV1': (cv2.COLOR_RGB2HSV, 1),
+    'HSV2': (cv2.COLOR_RGB2HSV, 2),
+    'LAB0': (cv2.COLOR_RGB2LAB, 0),
+    'LAB1': (cv2.COLOR_RGB2LAB, 1),
+    'LAB2': (cv2.COLOR_RGB2LAB, 2),
+    'RGB0': (cv2.COLOR_RGB2GRAY, 4),
+    'RGB1': (cv2.COLOR_RGB2GRAY, 5),
+    'RGB2': (cv2.COLOR_RGB2GRAY, 6),
+    'GRAY': (cv2.COLOR_RGB2GRAY, 3),
+}
 
-def pipeline(img, s_thresh=(170, 255), sx_thresh=(20, 100)):
-    img = np.copy(img)
-    
-    # Convert to HSV color space and separate the V channel
-    hsv = cv2.cvtColor(img, cv2.COLOR_RGB2HLS).astype(np.float)
-    l_channel = hsv[:,:,1]
-    s_channel = hsv[:,:,2]
-
-    # Sobel x
-    sobelx       = cv2.Sobel(l_channel, cv2.CV_64F, 1, 0)  # Take the deriative in x
-    abs_sobelx   = np.absolute(sobelx)                     # Absolute x derivative to accentuate lines away from horizontal
-    scaled_sobel = np.uint8(255*abs_sobelx/np.max(abs_sobelx))
-
-    # Threshold x gradient
-    sxbinary = np.zeros_like(scaled_sobel)
-    sxbinary[(scaled_sobel >= sx_thresh[0]) & (s_channel <= s_thresh[1])] = 1
-
-    # Threashold color channel
-    s_binary = np.zeros_like(s_channel)
-    s_binary[(s_channel >= s_thresh[0]) & (s_channel <= s_thresh[1])] = 1
-
-    # Stack each channel
-    # Note color_binary[:, :, 0]  is all 0s, effectively an all black image. It might
-    # be beneficial to replace this channel with something else.
-    color_binary = np.dstack(( np.zeros_like(sxbinary), sxbinary, s_binary))
-    return color_binary
-
-def applyPipeline(fname):
-    image = mpimg.imread(fname)
-    result = pipeline(image)
-
-    # Plot the result
-    f, (ax1, ax2) = plt.subplots(1, 2, figsize=(24, 9))
-    f.tight_layout()
-
-    ax1.imshow(image)
-    ax1.set_title('Original Image', fontsize=40)
-
-    ax2.imshow(result, cmap='gray')
-    ax2.set_title('Pipeline Result', fontsize=40)
-    plt.subplots_adjust(left=0., right=1, top=0.9, bottom=0.)
-    plt.show()
-
-
-# Define a function that applies Sobel x or y,
-# then takes an absolute value and applies a threshold.
-# Note; calling your function with orient='x', thresh_min=5, thresh_max=100
-# should produce output like the example image shown above this quiz.
-def abs_sobel_thresh(img, orient='x', thresh_min=0, thresh_max=255):
-    '''
-    Apply the following steps to img
-   
-    
-    3) Take the absolute value of the derivative or gradient
-    4) Scale to 8-bit (0-255) then convert to type = np.uint8
-    5) Create a mask of 1's where the scaled gradient magnitude is > thresh_min and < thresh_max
-    6) Return this mask as your binary_output image
-    '''
-    # 1) Convert to grayscale
-    gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
-    # 2) Take the derivative in x or y given orient = 'x' or 'y'
-    if orient == 'x':
-        sobel = np.absolute(cv2.Sobel(gray, cv2.CV_64F, 1, 0))
-    elif orient == 'y':
-        sobel = np.absolute(cv2.Sobel(gray, cv2.CV_64F, 0, 1))
-    abssobel = np.uint8(255*sobel/np.max(sobel))
-    mask = np.zeros_like(abssobel)
-    mask[(abssobel >= thresh_min) & (abssobel <= thresh_max)] = 1
-    return mask
-
-def applySobel(fname):
-    image = mpimg.imread(fname)
-    grad_binary = abs_sobel_thresh(image, orient='x', thresh_min=20, thresh_max=100)
-    f, (ax1, ax2) = plt.subplots(1, 2, figsize=(24, 9))
-    f.tight_layout()
-    ax1.imshow(image)
-    ax1.set_title('Original Image', fontsize=50)
-    ax2.imshow(grad_binary, cmap='gray')
-    ax2.set_title('Thresholded Gradient', fontsize=50)
-    plt.subplots_adjust(left=0., right=1, top=0.9, bottom=0.)
-    plt.show()
-
+#############################################################################
+# Functions to apply slidding window
+#############################################################################
 def window_mask(width, height, img_ref, center, level):
     output = np.zeros_like(img_ref)
     output[int(img_ref.shape[0] - (level+1)*height):int(img_ref.shape[0] - level*height), max(0, int(center-width/2)):min(int(center+width/2), img_ref.shape[1])]=1
@@ -136,21 +73,22 @@ def find_window_centroids(warped, window_width, window_height, margin):
 
     return window_centroids
 
-def applyWindowCentroids(fname):
-    warped = mpimg.imread(fname)
-    window_centroids = find_window_centroids(warped, window_width, window_height, margin)
+
+def applyWindowCentroids(img, window_width, window_height, margin):
+    window_centroids = find_window_centroids(img, window_width, window_height, margin)
+    print(img)
 
     # If we found any window centers
     if len(window_centroids) > 0:
         # Points used to draw all the left and right windows
-        l_points = np.zeros_like(warped)
-        r_points = np.zeros_like(warped)
+        l_points = np.zeros_like(img)
+        r_points = np.zeros_like(img)
 
         # Go through each level and draw the windows
         for level in range(0, len(window_centroids)):
             # Window_mask is a function to draw window areas
-            l_mask = window_mask(window_width, window_height, warped, window_centroids[level][0], level)
-            r_mask = window_mask(window_width, window_height, warped, window_centroids[level][1], level)
+            l_mask = window_mask(window_width, window_height, img, window_centroids[level][0], level)
+            r_mask = window_mask(window_width, window_height, img, window_centroids[level][1], level)
             # Add graphic points from window mask here to total pixels found
             l_points[(l_points == 255) | ((l_mask == 1) ) ] = 255
             r_points[(r_points == 255) | ((r_mask == 1) ) ] = 255
@@ -159,69 +97,134 @@ def applyWindowCentroids(fname):
         template = np.array(r_points + l_points, np.uint8) # add both left and right window pixels together
         zero_channel = np.zeros_like(template)    # create a zero color channel
         template = np.array(cv2.merge((zero_channel, template, zero_channel)), np.uint8)  # make window pixels green
-        warpage = np.array(cv2.merge((warped, warped, warped)), np.uint8) # making the original road pixels 3 color channels
-        output = cv2.addWeighted(warpage, 1, template, 0.5, 0.0)          # overlay the orignal road image with window results
+        warpage = np.array(cv2.merge((img, img, img)), np.uint8) # making the original road pixels 3 color channels
+        output = cv2.addWeighted(warpage, 1, template, 0.5, 0.0) # overlay the orignal road image with window results
 
     # If no window centers found, just display original road image
     else:
-        output = np.array(cv2.merge((warped, warped, warped)), np.uint8)
+        output = np.array(cv2.merge((img, img, img)), np.uint8)
 
+    return output
+
+def tryWindowCentroids(fname):
+    warped = mpimg.imread(fname)
+
+    print(warped.shape)
+    output = applyWindowCentroids(warped, window_width, window_height, margin)
+    
     # Display the final results
     plt.imshow(output)
     plt.title('window fitting results')
     plt.show()
 
-def mag_thresh(img, sobel_kernel=3, mag_thresh=(0, 255)):
-    # 1) Convert to grayscale
-    gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
-    # 2) Take both Sobel x and y gradients
+
+#############################################################################
+# Functions to find good result with different sobel filters
+#############################################################################
+# apply sobel filter in either x direction or y direction
+def abs_sobel(gray, orient='x', kernel_size=3, thresh=(0, 255)):
+    """
+    Apply Sobel filter in x direction or y direction
+    """
+    # Take the derivative in x or y given orient = 'x' or 'y'
+    if orient == 'x':
+        sobel = np.absolute(cv2.Sobel(gray, cv2.CV_64F, 1, 0, ksize=kernel_size))
+    elif orient == 'y':
+        sobel = np.absolute(cv2.Sobel(gray, cv2.CV_64F, 0, 1, ksize=kernel_size))
+
+    # Take the absolute value of the derivative or gradient
+    # and scale to 8-bit (0-255) then convert to type = np.uint8
+    abssobel = np.uint8(255*sobel/np.max(sobel))
+
+    # Create a mask of 1's where the scaled gradient magnitude is > thresh_min and < thresh_max
+    binary_output = np.zeros_like(abssobel)
+    binary_output[(abssobel >= thresh[0]) & (abssobel <= thresh[1])] = 1
+    
+    return binary_output
+
+# apply sobel filter in both of x and y directions
+def mag_sobel(gray, sobel_kernel=3, mag_thresh=(0, 255)):
+    """
+    Take both Sobel x and y gradients
+    """
     sobelx = cv2.Sobel(gray, cv2.CV_64F, 1, 0, ksize=sobel_kernel)
     sobely = cv2.Sobel(gray, cv2.CV_64F, 0, 1, ksize=sobel_kernel)
+    
     # Calculate the gradient magnitude
     gradmag = np.sqrt(sobelx**2 + sobely**2)
     # Rescale to 8 bit
     scale_factor = np.max(gradmag)/255
     gradmag = (gradmag/scale_factor).astype(np.uint8)
+
     # Create a binary image of ones where threshold is met, zeros otherwise
     binary_output = np.zeros_like(gradmag)
     binary_output[(gradmag >= mag_thresh[0]) & (gradmag <= mag_thresh[1])] = 1
 
     return binary_output
 
-def applyMagThresh(fname):
+# Try to find best parameters for Sobel Filters
+def trySobelFilter(fname, target_channel, filter_type, thres):
     image = mpimg.imread(fname)
-    mag_binary = mag_thresh(image, sobel_kernel=3, mag_thresh=(30, 100))
-    # Plot the result
-    f, (ax1, ax2) = plt.subplots(1, 2, figsize=(24, 9))
-    f.tight_layout()
-    ax1.imshow(image)
-    ax1.set_title('Original Image', fontsize=50)
-    ax2.imshow(mag_binary, cmap='gray')
-    ax2.set_title('Thresholded Magnitude', fontsize=50)
-    plt.subplots_adjust(left=0., right=1, top=0.9, bottom=0.)
-    plt.show()
-
-def hls_select(img, thresh=(0, 255)):
-    hls = cv2.cvtColor(img, cv2.COLOR_RGB2HLS)
-    s_channel = hls[:,:,2]
-    binary_output = np.zeros_like(s_channel)
-    binary_output[(s_channel > thresh[0]) & (s_channel <= thresh[1])] = 1
-    return binary_output
-
-def applyHlsSelect(fname):
-    image = mpimg.imread(fname)
-    hls_binary = hls_select(image, thresh=(90, 255))
     
-    f, (ax1, ax2) = plt.subplots(1, 2, figsize=(24, 9))
+    if (color_type[target_channel][1] <= 2): 
+        image = cv2.cvtColor(image, color_type[target_channel][0])
+        image = image[:,:,color_type[target_channel][1]]
+    elif (color_type[target_channel][1] == 3): 
+        image = cv2.cvtColor(image, color_type[target_channel][0])
+    elif (color_type[target_channel][1] == 4):
+        image = image[:,:,0]
+    elif (color_type[target_channel][1] == 5):
+        image = image[:,:,1]
+    else:
+        image = image[:,:,2]
+        
+    sob_3x3 = []
+    sob_7x7 = []
+    sob_11x11 = []
+    sob_15x15 = []
+    if (filter_type == 'ORX'):
+        for threshold in thres:
+            sob_3x3.append(abs_sobel(image, orient='x', kernel_size=3, thresh=threshold))
+            sob_7x7.append(abs_sobel(image, orient='x', kernel_size=7, thresh=threshold))
+            sob_11x11.append(abs_sobel(image, orient='x', kernel_size=11, thresh=threshold))
+            sob_15x15.append(abs_sobel(image, orient='x', kernel_size=15, thresh=threshold))
+    elif (filter_type == 'ORY'):
+        for threshold in thres:
+            sob_3x3.append(abs_sobel(image, orient='y', kernel_size=3, thresh=threshold))
+            sob_7x7.append(abs_sobel(image, orient='y', kernel_size=7, thresh=threshold))
+            sob_11x11.append(abs_sobel(image, orient='y', kernel_size=11, thresh=threshold))
+            sob_15x15.append(abs_sobel(image, orient='y', kernel_size=15, thresh=threshold))
+    else:
+        for threshold in thres:
+            sob_3x3.append(mag_sobel(image, sobel_kernel=3, mag_thresh=threshold))
+            sob_7x7.append(mag_sobel(image, sobel_kernel=7, mag_thresh=threshold))
+            sob_11x11.append(mag_sobel(image, sobel_kernel=11, mag_thresh=threshold))
+            sob_15x15.append(mag_sobel(image, sobel_kernel=15, mag_thresh=threshold))
+            
+    # Plot Every Space
+    f, ax = plt.subplots(4, len(thres), figsize=(24,9))
     f.tight_layout()
-    ax1.imshow(image)
-    ax1.set_title('Original Image', fontsize=50)
-    ax2.imshow(hls_binary, cmap='gray')
-    ax2.set_title('Thresholded S', fontsize=50)
-    plt.subplots_adjust(left=0., right=1, top=0.9, bottom=0.)
+
+    for row in range(4):
+        for col in range(len(thres)):
+            if row == 0:
+                ax[row, col].imshow(sob_3x3[col], cmap='gray')
+                ax[row, col].set_title('3x3 ({}-{})'.format(thres[col][0], thres[col][1]), fontsize=10)
+            elif row == 1:
+                ax[row, col].imshow(sob_7x7[col], cmap='gray')
+                ax[row, col].set_title('7x7 ({}-{})'.format(thres[col][0], thres[col][1]), fontsize=10)
+            elif row == 2:
+                ax[row, col].imshow(sob_11x11[col], cmap='gray')
+                ax[row, col].set_title('11x11 ({}-{})'.format(thres[col][0], thres[col][1]), fontsize=10)
+            else:
+                ax[row, col].imshow(sob_15x15[col], cmap='gray')
+                ax[row, col].set_title('15x15 ({}-{})'.format(thres[col][0], thres[col][1]), fontsize=10)
+
     plt.show()
-
-
+    
+#############################################################################
+# Functions to find good result with different thresholds
+#############################################################################
 # Apply Threshold to each channel
 def applyThreshold(image, ch0th, ch1th, ch2th):
     bin = np.zeros_like(image[:,:,0])
@@ -229,7 +232,8 @@ def applyThreshold(image, ch0th, ch1th, ch2th):
          (image[:,:,1] > ch1th[0]) & (image[:,:,1] <= ch1th[1]) & \
          (image[:,:,2] > ch2th[0]) & (image[:,:,2] <= ch2th[1]))] = 1
     return bin
-    
+
+# Try to find optimized thresholds applied to each channel of specified color space
 def tryThreshold(fname, colorspace, ch0th, ch1th, ch2th):
     image = mpimg.imread(fname)
 
@@ -243,120 +247,203 @@ def tryThreshold(fname, colorspace, ch0th, ch1th, ch2th):
         pass
 
     # for channel 0
+    ch0 = []
     target_channel = image[:,:,0]
-    start0 = ch0th[0]
-    step0 = (ch0th[1]-ch0th[0])/3.0
-    img0_0 = np.zeros_like(target_channel)
-    img0_0[(target_channel > start0) & (target_channel <= start0 + step0)] = 1
-    img0_1 = np.zeros_like(target_channel)
-    img0_1[(target_channel > start0 + step0) & (target_channel <= start0 + 2*step0)] = 1
-    img0_2 = np.zeros_like(target_channel)
-    img0_2[(target_channel > start0 + 2*step0) & (target_channel <= start0 + 3*step0)] = 1
+    for th in ch0th:
+        img = np.zeros_like(target_channel)
+        img[(target_channel >= th[0]) & (target_channel <= th[1])] = 1
+        ch0.append(img)
 
     # for channel 1
+    ch1 = []
     target_channel = image[:,:,1]
-    start1 = ch1th[0]
-    step1 = (ch1th[1]-ch1th[0])/3
-    img1_0 = np.zeros_like(target_channel)
-    img1_0[(target_channel > start1) & (target_channel <= start1 + step1)] = 1
-    img1_1 = np.zeros_like(target_channel)
-    img1_1[(target_channel > start1 + step1) & (target_channel <= start1 + 2*step1)] = 1
-    img1_2 = np.zeros_like(target_channel)
-    img1_2[(target_channel > start1 + 2*step1) & (target_channel <= start1 + 3*step1)] = 1
+    for th in ch1th:
+        img = np.zeros_like(target_channel)
+        img[(target_channel >= th[0]) & (target_channel <= th[1])] = 1
+        ch1.append(img)
 
     # for channel 2
+    ch2 = []
     target_channel = image[:,:,2]
-    start2 = ch2th[0]
-    step2 = (ch2th[1]-ch2th[0])/3
-    img2_0 = np.zeros_like(target_channel)
-    img2_0[(target_channel > start2) & (target_channel <= start2 + step2)] = 1
-    img2_1 = np.zeros_like(target_channel)
-    img2_1[(target_channel > start2 + step2) & (target_channel <= start2 + 2*step2)] = 1
-    img2_2 = np.zeros_like(target_channel)
-    img2_2[(target_channel > start2 + 2*step2) & (target_channel <= start2 + 3*step2)] = 1
-    
-
+    for th in ch2th:
+        img = np.zeros_like(target_channel)
+        img[(target_channel >= th[0]) & (target_channel <= th[1])] = 1
+        ch2.append(img)
+        
     # Plot Every Space
     f, ax = plt.subplots(3, 3, figsize=(24,9))
     f.tight_layout()
 
-    ax[0, 0].imshow(img0_0, cmap='gray')
-    ax[0, 0].set_title('({}-{})'.format(start0,start0+step0), fontsize=10)
-    ax[0, 1].imshow(img0_1, cmap='gray')
-    ax[0, 1].set_title('({}-{})'.format(start0+step0,start0+2*step0), fontsize=10)
-    ax[0, 2].imshow(img0_2, cmap='gray')
-    ax[0, 2].set_title('({}-{})'.format(start0+2*step0,start0+3*step0), fontsize=10)
-    ax[1, 0].imshow(img1_0, cmap='gray')
-    ax[1, 0].set_title('({}-{})'.format(start1,start1+step1), fontsize=10)
-    ax[1, 1].imshow(img1_1, cmap='gray')
-    ax[1, 1].set_title('({}-{})'.format(start1+step1,start1+2*step1), fontsize=10)
-    ax[1, 2].imshow(img1_2, cmap='gray')
-    ax[1, 2].set_title('({}-{})'.format(start1+2*step1,start1+3*step1), fontsize=10)
-    ax[2, 0].imshow(img2_0, cmap='gray')
-    ax[2, 0].set_title('({}-{})'.format(start2,start2+step2), fontsize=10)
-    ax[2, 1].imshow(img2_1, cmap='gray')
-    ax[2, 1].set_title('({}-{})'.format(start2+step2,start2+2*step2), fontsize=10)
-    ax[2, 2].imshow(img2_2, cmap='gray')
-    ax[2, 2].set_title('({}-{})'.format(start2+2*step2,start2+3*step2), fontsize=10)
+    for row in range(3):
+        for col in range(3):
+            if row == 0:   # for channel0
+                ax[row, col].imshow(ch0[col], cmap='gray')
+                ax[row, col].set_title('ch0:({}-{})'.format(ch0th[col][0], ch0th[col][1]), fontsize=10)
+            elif row == 1: # for channel1
+                ax[row, col].imshow(ch1[col], cmap='gray')
+                ax[row, col].set_title('ch1:({}-{})'.format(ch1th[col][0], ch1th[col][1]), fontsize=10)
+            else:          # for channel2
+                ax[row, col].imshow(ch2[col], cmap='gray')
+                ax[row, col].set_title('ch2:({}-{})'.format(ch2th[col][0], ch2th[col][1]), fontsize=10)
+                
     plt.show()
     
-
-# Split Images into different channel
+#############################################################################
+# Functions to find good result in the color spaces
+# Try to split Images into channels to find best color space
+#############################################################################
 def tryColorSpaceSplit(fname):
     # Split at RGB Space
     image = mpimg.imread(fname)
+    image_chname = ['Red Channel', 'Green Channel', 'Blue Channel']
 
     # Split at HLS Space
     hls = cv2.cvtColor(image, cv2.COLOR_RGB2HLS)
+    hls_chname = ['Hue Channel', 'Lightless Channel', 'Saturation Channel']
 
     # Split at HSV Space
     hsv = cv2.cvtColor(image, cv2.COLOR_RGB2HSV)
+    hsv_chname = ['Hue Channel', 'Saturation Channel', 'Value Channel']
 
     # Split at LAB Space
     lab = cv2.cvtColor(image, cv2.COLOR_RGB2LAB)
+    lab_chname = ['Lightness', 'Green-Red (A) Channel', 'Blue-Yellow (B) Channel']
 
     # Plot Every Space
     f, ax = plt.subplots(4, 3, figsize=(24, 9))
     f.tight_layout()
 
-    ax[0, 0].imshow(image[:,:,0], cmap='gray')
-    ax[0, 0].set_title('Red Channel', fontsize=10)
-    ax[0, 1].imshow(image[:,:,1], cmap='gray')
-    ax[0, 1].set_title('Green Channel', fontsize=10)
-    ax[0, 2].imshow(image[:,:,2], cmap='gray')
-    ax[0, 2].set_title('Blue Channel', fontsize=10)
-    ax[1, 0].imshow(hls[:,:,0], cmap='gray')
-    ax[1, 0].set_title('Hue Channel', fontsize=10)
-    ax[1, 1].imshow(hls[:,:,1], cmap='gray')
-    ax[1, 1].set_title('Lightless Channel', fontsize=10)
-    ax[1, 2].imshow(hls[:,:,2], cmap='gray')
-    ax[1, 2].set_title('Saturation Channel', fontsize=10)
-    ax[2, 0].imshow(hsv[:,:,0], cmap='gray')
-    ax[2, 0].set_title('Hue Channel', fontsize=10)
-    ax[2, 1].imshow(hsv[:,:,1], cmap='gray')
-    ax[2, 1].set_title('Saturation Channel', fontsize=10)
-    ax[2, 2].imshow(hsv[:,:,2], cmap='gray')
-    ax[2, 2].set_title('Value Channel', fontsize=10)
-    ax[3, 0].imshow(lab[:,:,0], cmap='gray')
-    ax[3, 0].set_title('Lightness', fontsize=10)
-    ax[3, 1].imshow(lab[:,:,1], cmap='gray')
-    ax[3, 1].set_title('Green-Red (A) Channel', fontsize=10)
-    ax[3, 2].imshow(lab[:,:,2], cmap='gray')
-    ax[3, 2].set_title('Blue-Yellow (B) Channel', fontsize=10)
+    for row in range(4):
+        for col in range(3):
+            if row == 0:
+                ax[row, col].imshow(image[:,:,col], cmap='gray')
+                ax[row, col].set_title(image_chname[col], fontsize=10)
+            elif row == 1:
+                ax[row, col].imshow(hls[:,:,col], cmap='gray')
+                ax[row, col].set_title(hls_chname[col], fontsize=10)
+            elif row == 2:
+                ax[row, col].imshow(hsv[:,:,col], cmap='gray')
+                ax[row, col].set_title(hsv_chname[col], fontsize=10)
+            else:
+                ax[row, col].imshow(lab[:,:,col], cmap='gray')
+                ax[row, col].set_title(lab_chname[col], fontsize=10)
     plt.show()
+
+#############################################################################
+# Functions to apply pipeline operation
+#############################################################################
+def applyPipeline(origimage, target_channel, color_thresholds, filter_type, kernel_size, threshold=(0,255)):
+    image = origimage
+
+    if (color_type[target_channel][1] <= 2): 
+        image = cv2.cvtColor(image, color_type[target_channel][0])
+        gray = image[:,:,color_type[target_channel][1]]
+    elif (color_type[target_channel][1] == 3): 
+        gray = cv2.cvtColor(image, color_type[target_channel][0])
+    elif (color_type[target_channel][1] == 4):
+        gray = image[:,:,0]
+    elif (color_type[target_channel][1] == 5):
+        gray = image[:,:,1]
+    else:
+        gray = image[:,:,2]
+
+    # Pipelined Operation
+    result_with_color = applyThreshold(image, color_thresholds[0], color_thresholds[1], color_thresholds[2])
     
+    if (filter_type == 'ORX'):
+        result_with_filter = abs_sobel(gray, orient='x', kernel_size=kernel_size, thresh=threshold)
+    elif (filter_type == 'ORY'):
+        result_with_filter = abs_sobel(gray, orient='y', kernel_size=kernel_size, thresh=threshold)
+    else:
+        result_with_filter = mag_sobel(gray, sobel_kernel=kernel_size, mag_thresh=threshold)
+
+    color_result = np.dstack((np.zeros_like(gray), result_with_filter*255, result_with_color*255))
+    binary_result = np.zeros_like(gray)
+    binary_result[(result_with_color == 1) | (result_with_filter == 1)] = 1
+
+    return color_result, binary_result 
+    
+        
+def tryPipeline(fname, target_channel, color_thresholds, filter_type, kernel_size, threshold=(0,255)):
+    origimage = mpimg.imread(fname)
+
+    color_result, binary_result = applyPipeline(origimage, target_channel, color_thresholds, filter_type, kernel_size, threshold)
+
+# Plot the result
+    f, ax = plt.subplots(1, 3, figsize=(24, 9))
+    f.tight_layout()
+
+    ax[0].imshow(origimage)
+    ax[0].set_title('Original Image', fontsize=10)
+
+    ax[1].imshow(color_result)
+    ax[1].set_title('Pipelined Pseudo Result', fontsize=10)
+    print(color_result.shape)
+    print(color_result)
+
+    ax[2].imshow(binary_result, cmap='gray')
+    ax[2].set_title('Pipelined Binary Result', fontsize=10)
+    plt.subplots_adjust(left=0., right=1, top=0.9, bottom=0.)
+    plt.show()
+
+
+#############################################################################
+# Functions to apply perspective transform
+#############################################################################
+def perspective_transform(img, src, dst):   
+    """
+    Applies a perspective 
+    """
+    M = cv2.getPerspectiveTransform(src, dst)
+    img_size = (img.shape[1], img.shape[0])
+    warped = cv2.warpPerspective(img, M, img_size, flags=cv2.INTER_LINEAR)
+    
+    return warped
+
+def applyPerspectiveTransform(image):
+    print(image.shape)
+    (bottom_px, right_px) = (image.shape[0] - 1, image.shape[1] - 1)
+    pts = np.array([[50,bottom_px],[252,207],[330,207], [530, bottom_px]], np.int32)
+    #cv2.polylines(image, [pts], True, (255,0,0), 10)
+    #plt.axis('off')
+    #plt.imshow(image)
+    #plt.show()
+
+    src_pts = pts.astype(np.float32)
+    dst_pts = np.array([[0, bottom_px], [0, 0], [right_px, 0], [right_px, bottom_px]], np.float32)
+
+    img = perspective_transform(image, src_pts, dst_pts)
+    
+    return img
+
+def tryPerspectiveTransform(fname):
+    image = mpimg.imread(fname)
+    
+    plt.imshow(applyPerspectiveTransform(image))
+    plt.show()
+
 
 if __name__ == "__main__":
-    #applyPipeline('bridge_shadow.jpg')
-    #applySobel('signs_vehicles_xygrad.png')
-    #applyWindowCentroids('warped-example.jpg')
-    #applyMagThresh('signs_vehicles_xygrad.png')
-    #applyHlsSelect('bridge_shadow.jpg')
-    #tryColorSpaceSplit('bridge_shadow.jpg')
-    #tryThreshold('bridge_shadow.jpg', 'HLS', (0, 255), (0, 255), (0, 255))
 
     image = mpimg.imread('bridge_shadow.jpg')
-    image = cv2.cvtColor(image, cv2.COLOR_RGB2HLS)
-    image = applyThreshold(image, (0, 30), (105, 255), (170, 255))
-    plt.imshow(image, cmap='gray')
+    
+    #tryWindowCentroids('warped-example.jpg')
+    #tryColorSpaceSplit('bridge_shadow.jpg')
+    #tryThreshold('bridge_shadow.jpg', 'HLS', ((0, 85), (86,  170), (171, 255)),  ((0, 85), (86,  170), (171, 255)),  ((0, 85), (86,  170), (171, 255)))
+    #trySobelFilter('bridge_shadow.jpg', 'HLS2', 'ORX', ((20, 100), (50,  150), (80, 200)))
+    #trySobelFilter('bridge_shadow.jpg', 'HLS2', 'AND', ((20, 120), (50,  150), (80, 200)))
+    #tryPipeline('bridge_shadow.jpg', 'HLS2', ((0, 30), (105, 255), (170, 255)), 'ORX', 3, threshold=(20,100))
+    #tryPerspectiveTransform('bridge_shadow.jpg')
+    
+    _, biimg = applyPipeline(image, 'HLS2', ((0, 30), (105, 255), (170, 255)), 'ORX', 3, threshold=(20,100))
+    img = applyPerspectiveTransform(biimg)
+    img = applyWindowCentroids(img, window_width, window_height, margin)
+    img = img*255
+    plt.imshow(img)
     plt.show()
+    
+    #image = mpimg.imread('bridge_shadow.jpg')
+    #image = cv2.cvtColor(image, cv2.COLOR_RGB2HLS)
+    #image = applyThreshold(image, (0, 30), (105, 255), (170, 255))
+    #plt.imshow(image, cmap='gray')
+    #plt.show()
