@@ -1,13 +1,15 @@
 import LPoint2D
 import Pose2D
+import math
 
 MIN_SCAN_RANGE = 0.1
 MAX_SCAN_RANGE = 6
 
 class SensorDataReader:
-    def __init__(self, offset=180):
+    def __init__(self, fname, offset=180):
         self.offset = offset
         self.file   = 0
+        self.file   = open(fname, 'r')
         
     def setOffset(self, offset):
         self.offset = offset
@@ -41,8 +43,7 @@ class SensorDataReader:
             for i in range(5):
                 items.pop(0)
 
-            result = []
-            # Read Scan Data
+            result = []            # Read Scan Data
             for i in range(num):
                 
                 if (len(items)):
@@ -81,6 +82,7 @@ class SensorDataReader:
             else:
                 return False, result, []
 
+            th = th * 180.0 / math.pi
             pose = Pose2D.Pose2D(tx, ty, th)
             pose.calRmat()
             
