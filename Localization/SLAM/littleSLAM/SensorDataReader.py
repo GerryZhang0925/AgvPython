@@ -82,8 +82,8 @@ class SensorDataReader:
             else:
                 return False, result, []
 
-            th = th * 180.0 / math.pi
+            #th = th * 180.0 / math.pi
             pose = Pose2D.Pose2D(tx, ty, th)
-            pose.calRmat()
+            #pose.calRmat()
             
             return True, result, pose
