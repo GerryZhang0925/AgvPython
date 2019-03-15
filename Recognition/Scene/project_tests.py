@@ -105,7 +105,7 @@ def test_optimize(optimize):
         sess.run([train_op], {correct_label: np.arange(np.prod(shape)).reshape(shape), learning_rate: 10})
         test, loss = sess.run([layers_output, cross_entropy_loss], {correct_label: np.arange(np.prod(shape)).reshape(shape)})
 
-    assert test.min() != 9 or test.max() != 9, 'Traning operation not changing weights.'
+    assert test.min() != 9 or test.max() != 9, 'Training operation not changing weights.'
 
 
 @test_safe
@@ -148,4 +148,16 @@ def test_for_kitti_dataset(data_dir):
     assert training_images_count == 289, 'Expected 289 training images, found {} images.'.format(training_images_count)
     assert training_labels_count == 289, 'Expected 289 labels, found {} labels.'.format(training_labels_count)
     assert testing_images_count  == 290, 'Expected 290 testing images, found {} images.'.format(testing_images_count)
-    
+
+@test_safe
+def test_for_aiedge_dataset(data_dir):
+    aiedge_dataset_path   = os.path.join(data_dir, 'seg')
+    training_labels_count = len(glob(os.path.join(aiedge_dataset_path, 'train/annotations/train_*.png')))
+    training_images_count = len(glob(os.path.join(aiedge_dataset_path, 'train/images/train_*.jpg')))
+    testing_images_count  = len(glob(os.path.join(aiedge_dataset_path, 'test/images/test_*.jpg')))
+
+    assert not (training_images_count == training_labels_count == testing_images_count == 0),\
+        'AI edge dataset not found. Extract AI edge dataset in {}'.format(aiedge_dataset_path)
+    assert training_images_count == 2243, 'Expected 2243 training images, found {} images.'.format(training_images_count)
+    assert training_labels_count == 2243, 'Expected 2243 labels, found {} labels.'.format(training_labels_count)
+    assert testing_images_count  == 649, 'Expected 649 testing images, found {} images.'.format(testing_images_count)

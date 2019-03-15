@@ -177,13 +177,25 @@ tests.test_train_nn(train_nn)
 ####################################################
 ## Run Whole the Application
 ####################################################
-def run():
-    num_classes = 2
+def run(dataset):
     image_shape = (160, 576)
     data_dir  = './data'
     runs_dir  = './runs'
     model_dir = './models'
-    tests.test_for_kitti_dataset(data_dir)
+    if dataset=='Kitti':
+        num_classes = 2
+        tests.test_for_kitti_dataset(data_dir)
+        train_dir      = 'data_road/training'
+        test_dir       = 'data_road/testing'
+        test_image_dir = 'image_2'
+        file_type      = '*.png'
+    else:
+        num_classes = 20
+        tests.test_for_aiedge_dataset(data_dir)
+        train_dir      = 'seg/train'
+        test_dir       = 'seg/test'
+        test_image_dir = 'images'
+        file_type      = '*.jpg'
 
     # Download pretrained vgg model
     helper.maybe_download_pretrained_vgg(data_dir)
@@ -195,7 +207,8 @@ def run():
         # Path to vgg model
         vgg_path = os.path.join(data_dir, 'vgg')
         # Create function to get batches
-        get_batches_fn = helper.gen_batch_function(os.path.join(data_dir, 'data_road/training'), image_shape)
+        print('create batch')
+        get_batches_fn = helper.gen_batch_function(dataset, os.path.join(data_dir, train_dir), image_shape)
 
         # Placeholders
         correct_label = tf.placeholder(tf.int32, [None, None, None, num_classes], name='correct_label')
@@ -211,16 +224,18 @@ def run():
         logits, train_op, cross_entropy_loss = optimize(layer_output, correct_label, learning_rate, num_classes)
 
         # Train NN using the train_nn function
-        epochs = 48 # 6 12 24
-        batch_size = 5
+        #epochs = 48 # 6 12 24
+        epochs = 48
+        batch_size = 16
 
         saver = tf.train.Saver()
 
         train_nn(sess, epochs, batch_size, get_batches_fn, train_op, cross_entropy_loss, input_image, correct_label, keep_prob, learning_rate)
 
-        helper.save_inference_samples(model_dir, runs_dir, data_dir, sess, image_shape, logits, keep_prob, input_image, saver)
-    
+        helper.save_inference_samples(model_dir, runs_dir, data_dir, test_dir, test_image_dir, file_type,
+                                      sess, image_shape, logits, keep_prob, input_image, saver)
 
 
 if __name__ == '__main__':
-    run()
+    #run(dataset='Kitti')
+    run(dataset='aiedge')
