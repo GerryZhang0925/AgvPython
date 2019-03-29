@@ -6,11 +6,12 @@ import math
 import operator
 
 def loadDataset(filename, split, trainingSet=[], testSet=[]):
-    with open(filename, 'rb') as csvfile:
+    with open(filename, 'r') as csvfile:
         lines = csv.reader(csvfile)
         dataset = list(lines)
         for x in range(len(dataset)-1):
             for y in range(4):
+                #print(dataset[x][y])
                 dataset[x][y] = float(dataset[x][y])
             if random.random() < split:
                 trainingSet.append(dataset[x])
@@ -43,7 +44,7 @@ def getResponse(neighbors):
             classVotes[response] += 1
         else:
             classVotes[response] = 1
-    sortedVotes = sorted(classVotes.iteritems(), key=operator.itemgetter(1), reverse=True)
+    sortedVotes = sorted(classVotes.items(), key=operator.itemgetter(1), reverse=True)
     return sortedVotes[0][0]
 
 def getAccuracy(testSet, predictions):
@@ -51,7 +52,7 @@ def getAccuracy(testSet, predictions):
     for x in range(len(testSet)):
         if testSet[x][-1] == predictions[x]:
             correct += 1
-    return (correct/float(len(testSet))) = 100.0
+    return (correct/float(len(testSet))) * 100.0
 
 def main():
     # prepare data
@@ -63,3 +64,13 @@ def main():
     print('Test set: ' + repr(len(testSet)))
     # generate predictions
     predictions = []
+    k = 3
+    for x in range(len(testSet)):
+        neighbors = getNeighbors(trainingSet, testSet[x], k)
+        result = getResponse(neighbors)
+        predictions.append(result)
+        print('> predicted=' + repr(result) + ', actual=' + repr(testSet[x][-1]))
+    accuracy = getAccuracy(testSet, predictions)
+    print('Accuracy: ', repr(accuracy) + '%')
+
+main()
